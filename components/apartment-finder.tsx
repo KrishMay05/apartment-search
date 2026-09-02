@@ -6,7 +6,7 @@ import {
   listingMatchesArea,
 } from "@/lib/listing-area";
 import { geocodeUsZip } from "@/lib/zip-search";
-import { zipAreas as presetZipAreas, type ZipArea } from "@/data/search-areas";
+import { zipAreas as presetZipAreas, getZipArea, type ZipArea } from "@/data/search-areas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import {
 import type { MapBounds } from "@/lib/geo";
 import { MapPin, Search, Shirt, Users, Wallet, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const DynamicListingMap = dynamic(
   () =>
@@ -55,16 +55,18 @@ export function ApartmentFinder() {
   const [selectedListingId, setSelectedListingId] = useState<string | null>(
     null,
   );
+  const zipSearchRequestId = useRef(0);
 
   const toggleZip = (zip: string) => {
-    setAreaMode("zip");
     setSearchBounds(null);
     setZipSearchError(null);
-    setSelectedZips((current) =>
-      current.includes(zip)
+    setSelectedZips((current) => {
+      const next = current.includes(zip)
         ? current.filter((value) => value !== zip)
-        : [...current, zip],
-    );
+        : [...current, zip];
+      setAreaMode(next.length === 0 ? "all" : "zip");
+      return next;
+    });
   };
 
   const searchByZip = async () => {
@@ -74,27 +76,43 @@ export function ApartmentFinder() {
       return;
     }
 
+    const requestId = ++zipSearchRequestId.current;
     setZipSearchLoading(true);
     setZipSearchError(null);
 
-    const result = await geocodeUsZip(trimmed);
-    setZipSearchLoading(false);
+    try {
+      const result = await geocodeUsZip(trimmed);
+      if (requestId !== zipSearchRequestId.current) {
+        return;
+      }
 
-    if ("error" in result) {
-      setZipSearchError(result.error);
-      return;
+      if ("error" in result) {
+        setZipSearchError(result.error);
+        return;
+      }
+
+      setCustomZipAreas((current) => {
+        if (getZipArea(result.area.zip)) {
+          return current;
+        }
+        const withoutDuplicate = current.filter(
+          (area) => area.zip !== result.area.zip,
+        );
+        return [...withoutDuplicate, result.area];
+      });
+      setAreaMode("zip");
+      setSearchBounds(null);
+      setSelectedZips((current) =>
+        current.includes(result.area.zip)
+          ? current
+          : [...current, result.area.zip],
+      );
+      setZipInput("");
+    } finally {
+      if (requestId === zipSearchRequestId.current) {
+        setZipSearchLoading(false);
+      }
     }
-
-    setCustomZipAreas((current) => {
-      const withoutDuplicate = current.filter((area) => area.zip !== result.area.zip);
-      return [...withoutDuplicate, result.area];
-    });
-    setAreaMode("zip");
-    setSearchBounds(null);
-    setSelectedZips((current) =>
-      current.includes(result.area.zip) ? current : [...current, result.area.zip],
-    );
-    setZipInput("");
   };
 
   const activeZipAreas = useMemo(() => {
@@ -111,6 +129,7 @@ export function ApartmentFinder() {
   const clearAreaFilters = () => {
     setAreaMode("all");
     setSelectedZips([]);
+    setCustomZipAreas([]);
     setSearchBounds(null);
     setZipSearchError(null);
   };
@@ -319,11 +338,14 @@ export function ApartmentFinder() {
             <label className="grid flex-1 gap-2 text-sm">
               <span className="font-medium">Search by zip code</span>
               <input
+                id="zip-search-input"
                 type="text"
                 inputMode="numeric"
                 autoComplete="postal-code"
                 placeholder="e.g. 90232 or 10001"
                 value={zipInput}
+                aria-invalid={zipSearchError ? true : undefined}
+                aria-describedby={zipSearchError ? "zip-search-error" : undefined}
                 onChange={(event) => {
                   setZipInput(event.target.value);
                   if (zipSearchError) {
@@ -339,7 +361,9 @@ export function ApartmentFinder() {
             </Button>
           </form>
           {zipSearchError ? (
-            <p className="text-sm text-destructive">{zipSearchError}</p>
+            <p id="zip-search-error" role="alert" className="text-sm text-destructive">
+              {zipSearchError}
+            </p>
           ) : null}
 
           <div className="flex flex-wrap gap-2">
@@ -360,22 +384,25 @@ export function ApartmentFinder() {
                 </Button>
               );
             })}
-            {selectedZips
-              .filter((zip) => !zipCodes.includes(zip))
-              .map((zip) => {
-                const area = activeZipAreas.find((entry) => entry.zip === zip);
-                return (
-                  <Button
-                    key={zip}
-                    size="sm"
-                    variant="default"
-                    onClick={() => toggleZip(zip)}
-                  >
-                    {area?.label ?? zip}
-                    <span className="text-xs opacity-80">(0)</span>
-                  </Button>
-                );
-              })}
+            {customZipAreas
+              .filter((area) => !zipCodes.includes(area.zip))
+              .map((area) => {
+              const active = areaMode === "zip" && selectedZips.includes(area.zip);
+              const count = listings.filter((listing) => listing.zip === area.zip)
+                .length;
+
+              return (
+                <Button
+                  key={area.zip}
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  onClick={() => toggleZip(area.zip)}
+                >
+                  {area.label}
+                  <span className="text-xs opacity-80">({count})</span>
+                </Button>
+              );
+            })}
           </div>
 
           <p className="text-xs text-muted-foreground">

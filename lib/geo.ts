@@ -35,3 +35,23 @@ export function leafletBoundsFromMapBounds(bounds: MapBounds): [
     [bounds.north, bounds.east],
   ];
 }
+
+export function isValidMapBounds(bounds: MapBounds): boolean {
+  const { south, west, north, east } = bounds;
+  return (
+    Number.isFinite(south) &&
+    Number.isFinite(west) &&
+    Number.isFinite(north) &&
+    Number.isFinite(east) &&
+    south >= -90 &&
+    south <= 90 &&
+    north >= -90 &&
+    north <= 90 &&
+    west >= -180 &&
+    west <= 180 &&
+    east >= -180 &&
+    east <= 180 &&
+    south < north &&
+    west < east
+  );
+}

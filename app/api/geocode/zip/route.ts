@@ -1,5 +1,6 @@
 import { getZipArea } from "@/data/search-areas";
-import type { MapBounds } from "@/lib/geo";
+import { isValidMapBounds, type MapBounds } from "@/lib/geo";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import type { ZipGeocodeResponse } from "@/lib/zip-search";
 import { normalizeUsZip } from "@/lib/us-zip";
 import { NextResponse } from "next/server";
@@ -10,6 +11,9 @@ type NominatimResult = {
   lon: string;
   boundingbox?: [string, string, string, string];
 };
+
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 function boundsFromNominatim(boundingbox: [string, string, string, string]): MapBounds {
   const [south, north, west, east] = boundingbox.map(Number);
@@ -23,6 +27,19 @@ function labelFromDisplayName(displayName: string, zip: string): string {
 }
 
 export async function GET(request: Request) {
+  const clientIp = getClientIp(request);
+  const rateLimit = checkRateLimit(`geocode:${clientIp}`, RATE_LIMIT, RATE_WINDOW_MS);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many zip lookups. Please wait a moment and try again." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const zip = normalizeUsZip(searchParams.get("zip") ?? "");
 
@@ -87,8 +104,21 @@ export async function GET(request: Request) {
   }
 
   const bounds = boundsFromNominatim(match.boundingbox);
+  if (!isValidMapBounds(bounds)) {
+    return NextResponse.json(
+      { error: "Geocoding service returned invalid map bounds." },
+      { status: 502 },
+    );
+  }
+
   const lat = Number(match.lat);
   const lng = Number(match.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return NextResponse.json(
+      { error: "Geocoding service returned invalid coordinates." },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({
     zip,

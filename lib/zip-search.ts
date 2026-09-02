@@ -1,7 +1,7 @@
 import type { ZipArea } from "@/data/search-areas";
 import { getZipArea } from "@/data/search-areas";
 import type { MapBounds } from "@/lib/geo";
-import { isValidUsZip, normalizeUsZip } from "@/lib/us-zip";
+import { normalizeUsZip } from "@/lib/us-zip";
 
 export type ZipGeocodeResponse = {
   zip: string;
@@ -21,6 +21,7 @@ export function toZipArea(result: ZipGeocodeResponse): ZipArea {
 
 export async function geocodeUsZip(
   input: string,
+  signal?: AbortSignal,
 ): Promise<{ area: ZipArea } | { error: string }> {
   const zip = normalizeUsZip(input);
   if (!zip) {
@@ -32,19 +33,35 @@ export async function geocodeUsZip(
     return { area: knownArea };
   }
 
-  const response = await fetch(`/api/geocode/zip?zip=${encodeURIComponent(zip)}`);
-  const payload = (await response.json()) as ZipGeocodeResponse | { error: string };
+  try {
+    const response = await fetch(`/api/geocode/zip?zip=${encodeURIComponent(zip)}`, {
+      signal,
+    });
 
-  if (!response.ok) {
-    return {
-      error:
-        "error" in payload && payload.error
-          ? payload.error
-          : `Could not look up zip code ${zip}.`,
-    };
+    let payload: ZipGeocodeResponse | { error: string };
+    try {
+      payload = (await response.json()) as ZipGeocodeResponse | { error: string };
+    } catch {
+      return { error: "Unexpected response from the geocoding service." };
+    }
+
+    if (!response.ok) {
+      return {
+        error:
+          "error" in payload && payload.error
+            ? payload.error
+            : `Could not look up zip code ${zip}.`,
+      };
+    }
+
+    return { area: toZipArea(payload as ZipGeocodeResponse) };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return { error: "Zip lookup was cancelled." };
+    }
+
+    return { error: "Could not reach the geocoding service. Try again in a moment." };
   }
-
-  return { area: toZipArea(payload as ZipGeocodeResponse) };
 }
 
-export { isValidUsZip, normalizeUsZip };
+export { normalizeUsZip };
