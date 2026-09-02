@@ -3,7 +3,6 @@
 import {
   defaultMapCenter,
   defaultMapZoom,
-  zipAreas,
   type ZipArea,
 } from "@/data/search-areas";
 import { formatRent, rentLabel, type Listing } from "@/data/listings";
@@ -28,6 +27,7 @@ import "leaflet/dist/leaflet.css";
 type ListingMapProps = {
   listings: Listing[];
   allListings: Listing[];
+  zipAreas: ZipArea[];
   selectedZips: string[];
   searchBounds: MapBounds | null;
   selectedListingId: string | null;
@@ -62,9 +62,11 @@ function MapResizeFix() {
 }
 
 function FitToSelection({
+  zipAreas,
   selectedZips,
   searchBounds,
 }: {
+  zipAreas: ZipArea[];
   selectedZips: string[];
   searchBounds: MapBounds | null;
 }) {
@@ -96,7 +98,7 @@ function FitToSelection({
       ],
       { padding: [32, 32] },
     );
-  }, [map, searchBounds, selectedZips]);
+  }, [map, searchBounds, selectedZips, zipAreas]);
 
   return null;
 }
@@ -166,6 +168,7 @@ function ZipOverlay({
 export function ListingMap({
   listings,
   allListings,
+  zipAreas,
   selectedZips,
   searchBounds,
   selectedListingId,
@@ -191,7 +194,11 @@ export function ListingMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapResizeFix />
-        <FitToSelection selectedZips={selectedZips} searchBounds={searchBounds} />
+        <FitToSelection
+          zipAreas={zipAreas}
+          selectedZips={selectedZips}
+          searchBounds={searchBounds}
+        />
         <CaptureMapBounds onCapture={onSearchBoundsChange} />
 
         {zipAreas.map((area) => (
