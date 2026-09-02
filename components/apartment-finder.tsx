@@ -5,6 +5,8 @@ import {
   captureMapBounds,
   listingMatchesArea,
 } from "@/lib/listing-area";
+import { geocodeUsZip } from "@/lib/zip-search";
+import { zipAreas as presetZipAreas, type ZipArea } from "@/data/search-areas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +18,7 @@ import {
   type Neighborhood,
 } from "@/data/listings";
 import type { MapBounds } from "@/lib/geo";
-import { MapPin, Shirt, Users, Wallet, X } from "lucide-react";
+import { MapPin, Search, Shirt, Users, Wallet, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
@@ -44,6 +46,10 @@ export function ApartmentFinder() {
   const [hideStretch, setHideStretch] = useState(false);
   const [sort, setSort] = useState<SortKey>("rent");
   const [selectedZips, setSelectedZips] = useState<string[]>([]);
+  const [customZipAreas, setCustomZipAreas] = useState<ZipArea[]>([]);
+  const [zipInput, setZipInput] = useState("");
+  const [zipSearchError, setZipSearchError] = useState<string | null>(null);
+  const [zipSearchLoading, setZipSearchLoading] = useState(false);
   const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
   const [areaMode, setAreaMode] = useState<AreaMode>("all");
   const [selectedListingId, setSelectedListingId] = useState<string | null>(
@@ -53,6 +59,7 @@ export function ApartmentFinder() {
   const toggleZip = (zip: string) => {
     setAreaMode("zip");
     setSearchBounds(null);
+    setZipSearchError(null);
     setSelectedZips((current) =>
       current.includes(zip)
         ? current.filter((value) => value !== zip)
@@ -60,10 +67,52 @@ export function ApartmentFinder() {
     );
   };
 
+  const searchByZip = async () => {
+    const trimmed = zipInput.trim();
+    if (!trimmed) {
+      setZipSearchError("Enter a US zip code to search.");
+      return;
+    }
+
+    setZipSearchLoading(true);
+    setZipSearchError(null);
+
+    const result = await geocodeUsZip(trimmed);
+    setZipSearchLoading(false);
+
+    if ("error" in result) {
+      setZipSearchError(result.error);
+      return;
+    }
+
+    setCustomZipAreas((current) => {
+      const withoutDuplicate = current.filter((area) => area.zip !== result.area.zip);
+      return [...withoutDuplicate, result.area];
+    });
+    setAreaMode("zip");
+    setSearchBounds(null);
+    setSelectedZips((current) =>
+      current.includes(result.area.zip) ? current : [...current, result.area.zip],
+    );
+    setZipInput("");
+  };
+
+  const activeZipAreas = useMemo(() => {
+    const merged = new Map<string, ZipArea>();
+    for (const area of presetZipAreas) {
+      merged.set(area.zip, area);
+    }
+    for (const area of customZipAreas) {
+      merged.set(area.zip, area);
+    }
+    return [...merged.values()];
+  }, [customZipAreas]);
+
   const clearAreaFilters = () => {
     setAreaMode("all");
     setSelectedZips([]);
     setSearchBounds(null);
+    setZipSearchError(null);
   };
 
   const setMapSearchArea = () => {
@@ -131,10 +180,14 @@ export function ApartmentFinder() {
       return "Custom map area";
     }
     if (areaMode === "zip" && selectedZips.length > 0) {
-      return selectedZips.join(", ");
+      const labels = selectedZips.map((zip) => {
+        const area = activeZipAreas.find((entry) => entry.zip === zip);
+        return area?.label ?? zip;
+      });
+      return labels.join(" · ");
     }
     return "All zip codes";
-  }, [areaMode, searchBounds, selectedZips]);
+  }, [activeZipAreas, areaMode, searchBounds, selectedZips]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -239,8 +292,8 @@ export function ApartmentFinder() {
             <div>
               <h2 className="font-heading text-xl">Search area</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Click a zip on the map, pick zip codes below, or pan/zoom and
-                set a custom search box.
+                Enter any US zip code, click a zip on the map, pick quick picks
+                below, or pan/zoom and set a custom search box.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -255,6 +308,39 @@ export function ApartmentFinder() {
               ) : null}
             </div>
           </div>
+
+          <form
+            className="flex flex-col gap-2 sm:flex-row sm:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void searchByZip();
+            }}
+          >
+            <label className="grid flex-1 gap-2 text-sm">
+              <span className="font-medium">Search by zip code</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                placeholder="e.g. 90232 or 10001"
+                value={zipInput}
+                onChange={(event) => {
+                  setZipInput(event.target.value);
+                  if (zipSearchError) {
+                    setZipSearchError(null);
+                  }
+                }}
+                className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
+              />
+            </label>
+            <Button type="submit" disabled={zipSearchLoading}>
+              <Search />
+              {zipSearchLoading ? "Looking up…" : "Search zip"}
+            </Button>
+          </form>
+          {zipSearchError ? (
+            <p className="text-sm text-destructive">{zipSearchError}</p>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             {zipCodes.map((zip) => {
@@ -274,6 +360,22 @@ export function ApartmentFinder() {
                 </Button>
               );
             })}
+            {selectedZips
+              .filter((zip) => !zipCodes.includes(zip))
+              .map((zip) => {
+                const area = activeZipAreas.find((entry) => entry.zip === zip);
+                return (
+                  <Button
+                    key={zip}
+                    size="sm"
+                    variant="default"
+                    onClick={() => toggleZip(zip)}
+                  >
+                    {area?.label ?? zip}
+                    <span className="text-xs opacity-80">(0)</span>
+                  </Button>
+                );
+              })}
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -284,6 +386,7 @@ export function ApartmentFinder() {
           <DynamicListingMap
             listings={filtered}
             allListings={listings}
+            zipAreas={activeZipAreas}
             selectedZips={areaMode === "zip" ? selectedZips : []}
             searchBounds={areaMode === "map" ? searchBounds : null}
             selectedListingId={selectedListingId}
@@ -300,9 +403,9 @@ export function ApartmentFinder() {
           <div className="rounded-xl border border-dashed bg-card px-6 py-16 text-center">
             <h2 className="font-heading text-2xl">No places in that slice</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Widen the rent cap, clear the map area, or turn stretch listings
-              back on. Culver City 2/2s with in-unit laundry cluster hard
-              around $3,500–$4,200.
+              {areaMode === "zip" && selectedZips.length > 0
+                ? `No curated 2/2 listings in ${selectedZips.join(", ")} yet. This app currently covers Culver City and nearby zips — try 90232, 90230, 90034, or 90066, or widen your filters.`
+                : "Widen the rent cap, clear the map area, or turn stretch listings back on. Culver City 2/2s with in-unit laundry cluster hard around $3,500–$4,200."}
             </p>
           </div>
         ) : (
