@@ -11,17 +11,33 @@ The list is a curated snapshot from public listings, not a live feed. Always con
 - Rent, split-per-person, square footage, and original listing links
 - Filters for neighborhood, max rent, and “slightly over $4k”
 
+## Repo
+
+- GitHub: [https://github.com/KrishMay05/apartment-search](https://github.com/KrishMay05/apartment-search)
+- Local clone on your Mac:
+
+```bash
+mkdir -p /Users/krish/workspace-ai/projects/GitHub
+cd /Users/krish/workspace-ai/projects/GitHub
+git clone https://github.com/KrishMay05/apartment-search.git
+cd apartment-search
+npm install
+npm start
+```
+
 ## Run locally
 
 ```bash
 npm install
-npm run dev
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000). To use a specific port:
+That starts the Next.js dev server at [http://localhost:3000](http://localhost:3000). `npm run dev` does the same thing.
+
+For a production server:
 
 ```bash
-npm run dev -- -p 43123
+npm run start:prod
 ```
 
 ## Stack
