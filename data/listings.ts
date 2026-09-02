@@ -13,6 +13,8 @@ export type Listing = {
   neighborhood: Neighborhood;
   city: string;
   zip: string;
+  lat: number;
+  lng: number;
   rentMin: number;
   rentMax: number;
   beds: 2;
@@ -43,6 +45,8 @@ export const listings: Listing[] = [
     neighborhood: "Palms",
     city: "Los Angeles",
     zip: "90034",
+    lat: 34.0056,
+    lng: -118.4109,
     rentMin: 3099,
     rentMax: 3565,
     beds: 2,
@@ -73,6 +77,8 @@ export const listings: Listing[] = [
     neighborhood: "Fox Hills",
     city: "Culver City",
     zip: "90230",
+    lat: 33.9848,
+    lng: -118.3935,
     rentMin: 3448,
     rentMax: 3955,
     beds: 2,
@@ -105,6 +111,8 @@ export const listings: Listing[] = [
     neighborhood: "Park East",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0147,
+    lng: -118.3858,
     rentMin: 3495,
     rentMax: 3495,
     beds: 2,
@@ -135,6 +143,8 @@ export const listings: Listing[] = [
     neighborhood: "Downtown Culver City",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0114,
+    lng: -118.3901,
     rentMin: 3500,
     rentMax: 3500,
     beds: 2,
@@ -165,6 +175,8 @@ export const listings: Listing[] = [
     neighborhood: "Jefferson",
     city: "Culver City",
     zip: "90230",
+    lat: 33.9999,
+    lng: -118.4101,
     rentMin: 3500,
     rentMax: 3500,
     beds: 2,
@@ -195,6 +207,8 @@ export const listings: Listing[] = [
     neighborhood: "Fox Hills",
     city: "Culver City",
     zip: "90230",
+    lat: 33.9825,
+    lng: -118.3914,
     rentMin: 3691,
     rentMax: 3691,
     beds: 2,
@@ -225,6 +239,8 @@ export const listings: Listing[] = [
     neighborhood: "Park East",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0136,
+    lng: -118.3823,
     rentMin: 3695,
     rentMax: 3695,
     beds: 2,
@@ -255,6 +271,8 @@ export const listings: Listing[] = [
     neighborhood: "Palms",
     city: "Los Angeles",
     zip: "90034",
+    lat: 34.0136,
+    lng: -118.4125,
     rentMin: 3770,
     rentMax: 4095,
     beds: 2,
@@ -285,6 +303,8 @@ export const listings: Listing[] = [
     neighborhood: "Park East",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0125,
+    lng: -118.3847,
     rentMin: 3850,
     rentMax: 3850,
     beds: 2,
@@ -315,6 +335,8 @@ export const listings: Listing[] = [
     neighborhood: "Culver West",
     city: "Los Angeles",
     zip: "90066",
+    lat: 34.0047,
+    lng: -118.4236,
     rentMin: 3895,
     rentMax: 3895,
     beds: 2,
@@ -345,6 +367,8 @@ export const listings: Listing[] = [
     neighborhood: "Palms",
     city: "Los Angeles",
     zip: "90034",
+    lat: 34.0191,
+    lng: -118.3947,
     rentMin: 3995,
     rentMax: 3995,
     beds: 2,
@@ -375,6 +399,8 @@ export const listings: Listing[] = [
     neighborhood: "Park East",
     city: "Culver City",
     zip: "90232",
+    lat: 34.01,
+    lng: -118.3878,
     rentMin: 3999,
     rentMax: 3999,
     beds: 2,
@@ -405,6 +431,8 @@ export const listings: Listing[] = [
     neighborhood: "Jefferson",
     city: "Culver City",
     zip: "90230",
+    lat: 33.9989,
+    lng: -118.4091,
     rentMin: 3995,
     rentMax: 4100,
     beds: 2,
@@ -435,6 +463,8 @@ export const listings: Listing[] = [
     neighborhood: "Downtown Culver City",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0203,
+    lng: -118.3958,
     rentMin: 3948,
     rentMax: 4195,
     beds: 2,
@@ -466,6 +496,8 @@ export const listings: Listing[] = [
     neighborhood: "Palms",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0169,
+    lng: -118.3914,
     rentMin: 4149,
     rentMax: 4149,
     beds: 2,
@@ -497,6 +529,8 @@ export const listings: Listing[] = [
     neighborhood: "Downtown Culver City",
     city: "Culver City",
     zip: "90232",
+    lat: 34.0191,
+    lng: -118.4014,
     rentMin: 4200,
     rentMax: 4200,
     beds: 2,
@@ -531,6 +565,8 @@ export const neighborhoods: Neighborhood[] = [
   "Culver West",
   "Jefferson",
 ];
+
+export const zipCodes = [...new Set(listings.map((listing) => listing.zip))].sort();
 
 export function formatRent(amount: number) {
   return new Intl.NumberFormat("en-US", {

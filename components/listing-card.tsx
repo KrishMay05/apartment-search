@@ -35,11 +35,22 @@ import {
   Square,
 } from "lucide-react";
 
-export function ListingCard({ listing }: { listing: Listing }) {
+export function ListingCard({
+  listing,
+  highlighted = false,
+}: {
+  listing: Listing;
+  highlighted?: boolean;
+}) {
   const split = perPerson(listing);
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-border/80 bg-card shadow-sm">
+    <Card
+      className={`flex h-full flex-col overflow-hidden border-border/80 bg-card shadow-sm transition-shadow ${
+        highlighted ? "ring-2 ring-primary shadow-md" : ""
+      }`}
+      id={`listing-${listing.id}`}
+    >
       <CardHeader className="gap-3">
         <div className="flex items-start justify-between gap-3">
           <div>

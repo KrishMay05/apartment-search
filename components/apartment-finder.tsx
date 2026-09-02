@@ -1,6 +1,10 @@
 "use client";
 
 import { ListingCard } from "@/components/listing-card";
+import {
+  captureMapBounds,
+  listingMatchesArea,
+} from "@/lib/listing-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,18 +12,65 @@ import {
   listings,
   neighborhoods,
   SEARCHED_ON,
+  zipCodes,
   type Neighborhood,
 } from "@/data/listings";
-import { MapPin, Shirt, Users, Wallet } from "lucide-react";
-import { useMemo, useState } from "react";
+import type { MapBounds } from "@/lib/geo";
+import { MapPin, Shirt, Users, Wallet, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
+
+const DynamicListingMap = dynamic(
+  () =>
+    import("@/components/listing-map").then((module) => ({
+      default: module.ListingMap,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[min(52vh,420px)] items-center justify-center rounded-xl border border-dashed bg-muted/30 text-sm text-muted-foreground">
+        Loading map…
+      </div>
+    ),
+  },
+);
 
 type SortKey = "rent" | "size" | "split";
+type AreaMode = "all" | "zip" | "map";
 
 export function ApartmentFinder() {
   const [neighborhood, setNeighborhood] = useState<"all" | Neighborhood>("all");
   const [maxRent, setMaxRent] = useState(4300);
   const [hideStretch, setHideStretch] = useState(false);
   const [sort, setSort] = useState<SortKey>("rent");
+  const [selectedZips, setSelectedZips] = useState<string[]>([]);
+  const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
+  const [areaMode, setAreaMode] = useState<AreaMode>("all");
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(
+    null,
+  );
+
+  const toggleZip = (zip: string) => {
+    setAreaMode("zip");
+    setSearchBounds(null);
+    setSelectedZips((current) =>
+      current.includes(zip)
+        ? current.filter((value) => value !== zip)
+        : [...current, zip],
+    );
+  };
+
+  const clearAreaFilters = () => {
+    setAreaMode("all");
+    setSelectedZips([]);
+    setSearchBounds(null);
+  };
+
+  const setMapSearchArea = () => {
+    setAreaMode("map");
+    setSelectedZips([]);
+    captureMapBounds();
+  };
 
   const filtered = useMemo(() => {
     const next = listings.filter((listing) => {
@@ -30,6 +81,16 @@ export function ApartmentFinder() {
         return false;
       }
       if (hideStretch && listing.stretch) {
+        return false;
+      }
+      if (
+        areaMode !== "all" &&
+        !listingMatchesArea(
+          listing,
+          areaMode === "zip" ? selectedZips : [],
+          areaMode === "map" ? searchBounds : null,
+        )
+      ) {
         return false;
       }
       return true;
@@ -46,7 +107,34 @@ export function ApartmentFinder() {
     });
 
     return next;
-  }, [hideStretch, maxRent, neighborhood, sort]);
+  }, [
+    areaMode,
+    hideStretch,
+    maxRent,
+    neighborhood,
+    searchBounds,
+    selectedZips,
+    sort,
+  ]);
+
+  useEffect(() => {
+    if (!selectedListingId) {
+      return;
+    }
+
+    const element = document.getElementById(`listing-${selectedListingId}`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [selectedListingId, filtered]);
+
+  const areaSummary = useMemo(() => {
+    if (areaMode === "map" && searchBounds) {
+      return "Custom map area";
+    }
+    if (areaMode === "zip" && selectedZips.length > 0) {
+      return selectedZips.join(", ");
+    }
+    return "All zip codes";
+  }, [areaMode, searchBounds, selectedZips]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -146,18 +234,85 @@ export function ApartmentFinder() {
           </CardContent>
         </Card>
 
+        <section className="grid gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-heading text-xl">Search area</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Click a zip on the map, pick zip codes below, or pan/zoom and
+                set a custom search box.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={setMapSearchArea}>
+                Use current map view
+              </Button>
+              {areaMode !== "all" ? (
+                <Button variant="ghost" onClick={clearAreaFilters}>
+                  <X />
+                  Clear area
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {zipCodes.map((zip) => {
+              const active = areaMode === "zip" && selectedZips.includes(zip);
+              const count = listings.filter((listing) => listing.zip === zip)
+                .length;
+
+              return (
+                <Button
+                  key={zip}
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  onClick={() => toggleZip(zip)}
+                >
+                  {zip}
+                  <span className="text-xs opacity-80">({count})</span>
+                </Button>
+              );
+            })}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Active area: {areaSummary}. Dimmed pins are outside your current
+            filters.
+          </p>
+
+          <DynamicListingMap
+            listings={filtered}
+            allListings={listings}
+            selectedZips={areaMode === "zip" ? selectedZips : []}
+            searchBounds={areaMode === "map" ? searchBounds : null}
+            selectedListingId={selectedListingId}
+            onZipToggle={toggleZip}
+            onSearchBoundsChange={(bounds) => {
+              setAreaMode("map");
+              setSearchBounds(bounds);
+            }}
+            onListingSelect={setSelectedListingId}
+          />
+        </section>
+
         {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-card px-6 py-16 text-center">
             <h2 className="font-heading text-2xl">No places in that slice</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Widen the rent cap or turn stretch listings back on. Culver City
-              2/2s with in-unit laundry cluster hard around $3,500–$4,200.
+              Widen the rent cap, clear the map area, or turn stretch listings
+              back on. Culver City 2/2s with in-unit laundry cluster hard
+              around $3,500–$4,200.
             </p>
           </div>
         ) : (
           <section className="grid gap-5 md:grid-cols-2">
             {filtered.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                highlighted={listing.id === selectedListingId}
+              />
             ))}
           </section>
         )}
